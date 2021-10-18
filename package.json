@@ -2,31 +2,28 @@
   "name": "tine",
   "version": "1.0.0",
   "description": "To test some netwrok connections",
-  "main": "index.js",
   "author": "Paul Sachs",
   "license": "MIT",
   "private": false,
+  "bin": "./server-dist/server.js",
   "scripts": {
-    "dev:ui": "parcel serve src/ui/index.html --open",
-    "dev:server": "ts-node-dev --inspect --respawn --pretty --transpile-only src/server.ts",
-    "dev": "concurrently -n ui,server \"yarn dev:ui\" \"yarn dev:server\""
+    "start:ui": "parcel serve src/ui/index.html --open",
+    "start:server": "ts-node-dev --inspect --respawn --pretty --transpile-only src/server.ts",
+    "start": "concurrently -n ui,server \"yarn start:ui\" \"yarn start:server\"",
+    "build:server": "tsc --project tsconfig.prod.json --outDir server-dist",
+    "build:ui": "parcel build --dist-dir server-dist/assets src/ui/index.html",
+    "package": "yarn build:server && yarn build:ui && yarn pkg ."
   },
   "devDependencies": {
     "@types/cors": "^2.8.12",
     "@types/express": "^4.17.13",
     "@types/helmet": "^4.0.0",
     "@types/node": "^16.11.0",
-    "cors": "^2.8.5",
-    "express": "^4.17.1",
-    "helmet": "^4.6.0",
     "parcel": "2",
-    "react": "^18.0.0-alpha-c3a19e5af-20211014",
-    "react-dom": "^18.0.0-alpha-c3a19e5af-20211014",
-    "rebass": "^4.0.7",
+    "pkg": "^5.3.3",
     "ts-node-dev": "^1.1.8"
   },
   "dependencies": {
-    "@rebass/preset": "^4.0.5",
     "@shopify/polaris": "^7.0.0",
     "@shopify/polaris-icons": "^4.8.0",
     "@types/express-fileupload": "^1.1.7",
@@ -34,15 +31,32 @@
     "@types/react": "^17.0.30",
     "@types/react-dom": "^17.0.9",
     "@types/rebass": "^4.0.10",
+    "@types/ssh2": "^0.5.48",
     "axios": "^0.23.0",
     "concurrently": "^6.3.0",
+    "cors": "^2.8.5",
     "exceljs": "^4.3.0",
+    "express": "^4.17.1",
     "express-fileupload": "^1.2.1",
+    "express-history-api-fallback": "^2.2.1",
+    "helmet": "^4.6.0",
+    "http-proxy-middleware": "^2.0.1",
+    "node-ssh": "^12.0.0",
     "ramda": "^0.27.1",
-    "react-dropzone": "^11.4.2",
+    "react": "^18.0.0-alpha-c3a19e5af-20211014",
+    "react-dom": "^18.0.0-alpha-c3a19e5af-20211014",
     "react-query": "^3.27.0",
     "react-table": "^7.7.0",
     "ts-pattern": "^3.3.3",
     "typescript": "^4.4.4"
+  },
+  "pkg": {
+    "assets": [
+      "server-dist/assets/**/*"
+    ],
+    "targets": [
+      "node14-win-x64"
+    ],
+    "outputPath": "packaged"
   }
 }

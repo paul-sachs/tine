@@ -5,10 +5,14 @@ import httpClient, { AxiosError } from "axios";
 import { NodeSSH } from "node-ssh";
 import fileUpload from "express-fileupload";
 import { Status } from "./types";
+import fallback from "express-history-api-fallback";
+import { createProxyMiddleware } from "http-proxy-middleware";
+import path from "path";
 
 const sshClient = new NodeSSH();
 
-const PORT = 1235;
+const args = process.argv.slice(2);
+const PORT = args?.[0] ?? 1235;
 const app = express();
 
 app.use(helmet());
@@ -19,10 +23,6 @@ app.use(
     debug: true,
   })
 );
-
-app.listen(PORT, () => {
-  console.log(`Listening on port ${PORT}`);
-});
 
 const router = express.Router();
 
@@ -66,7 +66,6 @@ router.get("/status", async (req, res) => {
           // The request was made but no response was received
           // `error.request` is an instance of XMLHttpRequest in the browser and an instance of
           // http.ClientRequest in node.js
-          console.error({ e, get: queryUrl });
           return reply({
             status: "unreachable",
             reason: error.toString(),
@@ -119,3 +118,30 @@ router.post("/parse", async (req, res) => {
 });
 
 app.use(router);
+
+if ((process as any).pkg !== undefined) {
+  // Configure a proxy and static hosting and fallback
+  // to emulate the parcel dev server.
+  // Note: assets won't work until packaged
+  const root = path.join(__dirname, `assets`);
+  app.use(express.static(root));
+
+  app.use(
+    createProxyMiddleware("/api", {
+      target: `http://localhost:${PORT}/`,
+      pathRewrite: {
+        "^/api": "",
+      },
+    })
+  );
+  // Fallback MUST be last middleware, otherwise it'll wipe out any following routes
+  app.use(
+    fallback("index.html", {
+      root,
+    })
+  );
+}
+
+app.listen(PORT, () => {
+  console.log(`Listening on port ${PORT}`);
+});

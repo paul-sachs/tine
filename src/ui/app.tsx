@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { useMutation, useQuery } from "react-query";
 import { useDebounce, useLocalStorage } from "./utils";
 import {
@@ -14,7 +14,11 @@ import {
   Icon,
   Spinner,
   Tooltip,
-  BadgeProps,
+  Layout,
+  Heading,
+  Loading,
+  Frame,
+  Toast,
 } from "@shopify/polaris";
 import { append, update, remove } from "ramda";
 import { InputType, Status } from "../types";
@@ -116,6 +120,7 @@ function FormatDataField<T extends object>({
 }
 
 export const App = () => {
+  const [toast, setToast] = useState<string>();
   const [fileContents, setFileContents] = useLocalStorage<InputType[]>(
     "file-contents",
     [
@@ -127,18 +132,29 @@ export const App = () => {
     ]
   );
 
-  const parseExcel = useMutation(async (fileToParse: File) => {
-    // TODO: parse excel file to pull out names/format/port/etc
-    // POSSIBLE: persist to lcalstorage
-    const formData = new FormData();
-    formData.append("file", fileToParse);
-    const result = await fetch(`/api/parse`, {
-      method: "POST",
-      body: formData,
-    });
-    const tempFormat: InputType[] = [,];
-    return tempFormat;
-  });
+  const parseExcel = useMutation(
+    async (fileToParse: File) => {
+      // TODO: parse excel file to pull out names/format/port/etc
+      // POSSIBLE: persist to lcalstorage
+      const formData = new FormData();
+      formData.append("file", fileToParse);
+      const result = await fetch(`/api/parse`, {
+        method: "POST",
+        body: formData,
+      });
+      const newInputs = await result.json();
+      return {
+        results: newInputs,
+        file: fileToParse,
+      };
+    },
+    {
+      onSuccess: ({ results, file }) => {
+        setFileContents(results);
+        setToast(`Uploaded and parsed ${file.name}.`);
+      },
+    }
+  );
 
   const rows = useMemo(() => {
     return fileContents.map((c, index) => [
@@ -181,49 +197,65 @@ export const App = () => {
   );
 
   return (
-    <Page title="Tine">
-      <Card
-        primaryFooterAction={{
-          content: "Add",
-          onAction: () =>
-            setFileContents(
-              append<InputType>({
-                format: "https",
-              })
-            ),
-        }}
-      >
-        <DataTable
-          verticalAlign="middle"
-          headings={[
-            "Name",
-            "IP Address",
-            "Format",
-            "Special port",
-            "Status",
-            "",
-          ]}
-          rows={rows}
-          columnContentTypes={[
-            "text",
-            "text",
-            "text",
-            "numeric",
-            "text",
-            "text",
-          ]}
-        />
-      </Card>
-      <DropZone
-        onDrop={handleDropZoneDrop}
-        accept="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
-        allowMultiple={false}
-      >
-        <DropZone.FileUpload
-          actionTitle="Load config"
-          actionHint="Loaded config will erase current network config."
-        />
-      </DropZone>
-    </Page>
+    <Frame>
+      <Page title="Tine" subtitle="Listen for access to urls">
+        {toast && (
+          <Toast content={toast} onDismiss={() => setToast(undefined)} />
+        )}
+        <Layout>
+          <Layout.Section>
+            <Card
+              primaryFooterAction={{
+                content: "Add",
+                onAction: () =>
+                  setFileContents(
+                    append<InputType>({
+                      format: "https",
+                    })
+                  ),
+              }}
+            >
+              <Card.Section>
+                <DataTable
+                  verticalAlign="middle"
+                  headings={[
+                    "Name",
+                    "IP Address",
+                    "Format",
+                    "Special port",
+                    "Status",
+                    "",
+                  ]}
+                  rows={rows}
+                  columnContentTypes={[
+                    "text",
+                    "text",
+                    "text",
+                    "numeric",
+                    "text",
+                    "text",
+                  ]}
+                />
+              </Card.Section>
+            </Card>
+          </Layout.Section>
+          <Layout.Section>
+            <DropZone
+              onDrop={handleDropZoneDrop}
+              accept="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+              allowMultiple={false}
+              dropOnPage
+              disabled={parseExcel.isLoading}
+            >
+              <DropZone.FileUpload
+                actionTitle="Load config"
+                actionHint="Loaded config will erase current network config."
+              />
+            </DropZone>
+          </Layout.Section>
+        </Layout>
+      </Page>
+      {parseExcel.isLoading && <Loading />}
+    </Frame>
   );
 };

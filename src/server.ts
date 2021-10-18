@@ -4,10 +4,12 @@ import helmet from "helmet";
 import httpClient, { AxiosError } from "axios";
 import { NodeSSH } from "node-ssh";
 import fileUpload from "express-fileupload";
-import { Status } from "./types";
+import { InputType, Status } from "./types";
 import fallback from "express-history-api-fallback";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import path from "path";
+import ExcelJS from "exceljs";
+import { Readable } from "stream";
 
 const sshClient = new NodeSSH();
 
@@ -18,11 +20,7 @@ const app = express();
 app.use(helmet());
 app.use(cors());
 app.use(express.json());
-app.use(
-  fileUpload({
-    debug: true,
-  })
-);
+app.use(fileUpload());
 
 const router = express.Router();
 
@@ -113,8 +111,52 @@ router.get("/status", async (req, res) => {
 });
 
 router.post("/parse", async (req, res) => {
-  console.log({ body: req.body, x: req.files });
-  res.status(201).send("success");
+  const file = req.files.file;
+  if (Array.isArray(file)) {
+    return res
+      .status(400)
+      .send("Multiple files uploaded but only one file is allowed at a time");
+  }
+  if (!file) {
+    return res.status(400).send("No files specified");
+  }
+  const supportedMimeTypes = [
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "text/csv",
+  ];
+  if (!supportedMimeTypes.includes(file.mimetype)) {
+    return res.status(400).send(`File format ${file.mimetype} not supported.`);
+  }
+  const workbook = new ExcelJS.Workbook();
+  let worksheet: ExcelJS.Worksheet | null = null;
+  if (
+    file.mimetype ===
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  ) {
+    await workbook.xlsx.load(file.data);
+    if (workbook.worksheets.length !== 1) {
+      return res.status(400).send("File must contain exactly 1 worksheet");
+    }
+    worksheet = workbook.worksheets[0];
+  } else {
+    worksheet = await workbook.csv.read(Readable.from(file.data.toString()));
+  }
+  let result: InputType[] = [];
+  // skip first row, assume headers
+  for (let rowIndex = 2; rowIndex <= worksheet.rowCount; rowIndex++) {
+    const row = worksheet.getRow(rowIndex);
+    if (!row) {
+      break;
+    }
+    result.push({
+      name: row.getCell(1).toString(),
+      ipAddress: row.getCell(2).toString(),
+      format: row.getCell(3).toString() as any,
+      port: row.getCell(4).toString() as any,
+    });
+  }
+
+  res.status(201).json(result);
 });
 
 app.use(router);
